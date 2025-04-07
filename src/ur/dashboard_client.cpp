@@ -26,7 +26,6 @@
  */
 //----------------------------------------------------------------------
 
-#include <iostream>
 #include <regex>
 #include <thread>
 #include <unistd.h>
@@ -38,6 +37,9 @@ using namespace std::chrono_literals;
 
 namespace urcl
 {
+
+constexpr std::size_t MAX_DASHBOARD_MSG_SIZE = 100;
+
 DashboardClient::DashboardClient(const std::string& host) : host_(host), port_(DASHBOARD_SERVER_PORT)
 {
 }
@@ -109,25 +111,26 @@ bool DashboardClient::send(const std::string& text)
 
 std::string DashboardClient::read()
 {
-  std::stringstream result;
+  char dashboard_message[MAX_DASHBOARD_MSG_SIZE];
+  std::size_t dashboard_message_index = 0;
   char character;
-  size_t read_chars = 99;
-  while (read_chars > 0)
-  {
-    if (!TCPSocket::read((uint8_t*)&character, 1, read_chars))
-    {
-      disconnect();
-      throw TimeoutException("Did not receive answer from dashboard server in time. Disconnecting from dashboard "
+  std::size_t read_chars = 1;
+  while (read_chars > 0) {
+    if (!TCPSocket::read((uint8_t*)&character, 1, read_chars)) {
+        disconnect();
+        throw TimeoutException("Did not receive answer from dashboard server in time. Disconnecting from dashboard "
                              "server.",
                              *recv_timeout_);
     }
-    result << character;
-    if (character == '\n')
-    {
-      break;
+    if (read_chars > 0) {
+        dashboard_message[dashboard_message_index++] = character;
+        if (character == '\n') {
+            break;
+        }
     }
   }
-  return result.str();
+  dashboard_message[dashboard_message_index] = '\0';
+  return std::string(dashboard_message);
 }
 
 std::string DashboardClient::sendAndReceive(const std::string& text)
